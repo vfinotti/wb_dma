@@ -168,8 +168,8 @@ input	[34:0]	slv_pt_in;	// Grouped WISHBONE in signals
 wb_dma_wb_mast	u0(
 		.clk(		clk		),
 		.rst(		rst		),
-		.wb_data_i(	wbs_data_i	),
-		.wb_data_o(	wbs_data_o	),
+		.wb_data_i(	wbm_data_i	),
+		.wb_data_o(	wbm_data_o	),
 		.wb_addr_o(	wb_addr_o	),
 		.wb_sel_o(	wb_sel_o	),
 		.wb_we_o(	wb_we_o		),
@@ -195,8 +195,8 @@ wb_dma_wb_mast	u0(
 wb_dma_wb_slv #(rf_addr)	u1(
 		.clk(		clk		),
 		.rst(		rst		),
-		.wb_data_i(	wbm_data_i	),
-		.wb_data_o(	wbm_data_o	),
+		.wb_data_i(	wbs_data_i	),
+		.wb_data_o(	wbs_data_o	),
 		.wb_addr_i(	wb_addr_i	),
 		.wb_sel_i(	wb_sel_i	),
 		.wb_we_i(	wb_we_i		),
