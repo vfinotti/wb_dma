@@ -96,7 +96,7 @@ module wb_dma_rf(clk, rst,
 	wb_rf_adr, wb_rf_din, wb_rf_dout, wb_rf_re, wb_rf_we,
 
 	// WISHBONE Interrupt outputs
-	inta_o, intb_o,
+	irqa_o, irqb_o,
 
 	// DMA Registers Outputs
 	pointer0, pointer0_s, ch0_csr, ch0_txsz, ch0_adr0, ch0_adr1, ch0_am0, ch0_am1,
@@ -196,7 +196,7 @@ input		wb_rf_re;
 input		wb_rf_we;
 
 // WISHBONE Interrupt outputs
-output		inta_o, intb_o;
+output		irqa_o, irqb_o;
 
 // Channel Registers Inputs
 output	[31:0]	pointer0, pointer0_s, ch0_csr, ch0_txsz, ch0_adr0, ch0_adr1, ch0_am0, ch0_am1;
@@ -257,12 +257,12 @@ input	[30:0]	dma_rest;
 //
 
 reg	[31:0]	wb_rf_dout;
-reg		inta_o, intb_o;
-reg	[30:0]	int_maska_r, int_maskb_r;
-wire	[31:0]	int_maska, int_maskb;
-wire	[31:0]	int_srca, int_srcb;
-wire		int_maska_we, int_maskb_we;
-wire	[30:0]	ch_int;
+reg		irqa_o, irqb_o;
+reg	[30:0]	irq_maska_r, irq_maskb_r;
+wire	[31:0]	irq_maska, irq_maskb;
+wire	[31:0]	irq_srca, irq_srcb;
+wire		irq_maska_we, irq_maskb_we;
+wire	[30:0]	ch_irq;
 wire		csr_we;
 wire	[31:0]	csr;
 reg	[7:0]	csr_r;
@@ -316,8 +316,8 @@ wire	[31:0]	sw_pointer28, sw_pointer29, sw_pointer30;
 // Aliases
 //
 
-assign int_maska = {1'h0, int_maska_r};
-assign int_maskb = {1'h0, int_maskb_r};
+assign irq_maska = {1'h0, irq_maska_r};
+assign irq_maskb = {1'h0, irq_maskb_r};
 assign csr = {31'h0, paused};
 
 ////////////////////////////////////////////////////////////////////
@@ -336,10 +336,10 @@ assign pause_req = csr_r[0];
 always @(posedge clk)
 	case(wb_rf_adr)		// synopsys parallel_case full_case
 	   8'h0:	wb_rf_dout <= #1 csr;
-	   8'h1:	wb_rf_dout <= #1 int_maska;
-	   8'h2:	wb_rf_dout <= #1 int_maskb;
-	   8'h3:	wb_rf_dout <= #1 int_srca;
-	   8'h4:	wb_rf_dout <= #1 int_srcb;
+	   8'h1:	wb_rf_dout <= #1 irq_maska;
+	   8'h2:	wb_rf_dout <= #1 irq_maskb;
+	   8'h3:	wb_rf_dout <= #1 irq_srca;
+	   8'h4:	wb_rf_dout <= #1 irq_srcb;
 
 	   8'h8:	wb_rf_dout <= #1 ch0_csr;
 	   8'h9:	wb_rf_dout <= #1 ch0_txsz;
@@ -631,8 +631,8 @@ always @(posedge clk)
 
 // Global Registers
 assign csr_we		= wb_rf_we & (wb_rf_adr == 8'h0);
-assign int_maska_we	= wb_rf_we & (wb_rf_adr == 8'h1);
-assign int_maskb_we	= wb_rf_we & (wb_rf_adr == 8'h2);
+assign irq_maska_we	= wb_rf_we & (wb_rf_adr == 8'h1);
+assign irq_maskb_we	= wb_rf_we & (wb_rf_adr == 8'h2);
 
 // ---------------------------------------------------
 
@@ -642,31 +642,31 @@ always @(posedge clk or negedge rst)
 	if(csr_we)		csr_r <= #1 wb_rf_din[7:0];
 
 // ---------------------------------------------------
-// INT_MASK
+// IRQ_MASK
 always @(posedge clk or negedge rst)
-	if(!rst)		int_maska_r <= #1 31'h0;
+	if(!rst)		irq_maska_r <= #1 31'h0;
 	else
-	if(int_maska_we)	int_maska_r <= #1 wb_rf_din[30:0];
+	if(irq_maska_we)	irq_maska_r <= #1 wb_rf_din[30:0];
 
 always @(posedge clk or negedge rst)
-	if(!rst)		int_maskb_r <= #1 31'h0;
+	if(!rst)		irq_maskb_r <= #1 31'h0;
 	else
-	if(int_maskb_we)	int_maskb_r <= #1 wb_rf_din[30:0];
+	if(irq_maskb_we)	irq_maskb_r <= #1 wb_rf_din[30:0];
 
 ////////////////////////////////////////////////////////////////////
 //
 // Interrupts
 //
 
-assign int_srca = {1'b0, (int_maska_r & ch_int) };
-assign int_srcb = {1'b0, (int_maskb_r & ch_int) };
+assign irq_srca = {1'b0, (irq_maska_r & ch_irq) };
+assign irq_srcb = {1'b0, (irq_maskb_r & ch_irq) };
 
 // Interrupt Outputs
 always @(posedge clk)
-	inta_o <= #1 |int_srca;
+	irqa_o <= #1 |irq_srca;
 
 always @(posedge clk)
-	intb_o <= #1 |int_srcb;
+	irqb_o <= #1 |irq_srcb;
 
 ////////////////////////////////////////////////////////////////////
 //
@@ -689,7 +689,7 @@ wb_dma_ch_rf #(0, ch0_conf[0], ch0_conf[1], ch0_conf[2], ch0_conf[3]) u0(
 		.sw_pointer(	sw_pointer0	),
 		.ch_stop(	ch_stop[0]	),
 		.ch_dis(	ch_dis[0]	),
-		.int(		ch_int[0]	),
+		.irq(		ch_irq[0]	),
 		.wb_rf_din(	wb_rf_din	),
 		.wb_rf_adr(	wb_rf_adr	),
 		.wb_rf_we(	wb_rf_we	),
@@ -727,7 +727,7 @@ wb_dma_ch_rf #(1, ch1_conf[0], ch1_conf[1], ch1_conf[2], ch1_conf[3]) u1(
 		.sw_pointer(	sw_pointer1	),
 		.ch_stop(	ch_stop[1]	),
 		.ch_dis(	ch_dis[1]	),
-		.int(		ch_int[1]	),
+		.irq(		ch_irq[1]	),
 		.wb_rf_din(	wb_rf_din	),
 		.wb_rf_adr(	wb_rf_adr	),
 		.wb_rf_we(	wb_rf_we	),
@@ -765,7 +765,7 @@ wb_dma_ch_rf #(2, ch2_conf[0], ch2_conf[1], ch2_conf[2], ch2_conf[3]) u2(
 		.sw_pointer(	sw_pointer2	),
 		.ch_stop(	ch_stop[2]	),
 		.ch_dis(	ch_dis[2]	),
-		.int(		ch_int[2]	),
+		.irq(		ch_irq[2]	),
 		.wb_rf_din(	wb_rf_din	),
 		.wb_rf_adr(	wb_rf_adr	),
 		.wb_rf_we(	wb_rf_we	),
@@ -803,7 +803,7 @@ wb_dma_ch_rf #(3, ch3_conf[0], ch3_conf[1], ch3_conf[2], ch3_conf[3]) u3(
 		.sw_pointer(	sw_pointer3	),
 		.ch_stop(	ch_stop[3]	),
 		.ch_dis(	ch_dis[3]	),
-		.int(		ch_int[3]	),
+		.irq(		ch_irq[3]	),
 		.wb_rf_din(	wb_rf_din	),
 		.wb_rf_adr(	wb_rf_adr	),
 		.wb_rf_we(	wb_rf_we	),
@@ -841,7 +841,7 @@ wb_dma_ch_rf #(4, ch4_conf[0], ch4_conf[1], ch4_conf[2], ch4_conf[3]) u4(
 		.sw_pointer(	sw_pointer4	),
 		.ch_stop(	ch_stop[4]	),
 		.ch_dis(	ch_dis[4]	),
-		.int(		ch_int[4]	),
+		.irq(		ch_irq[4]	),
 		.wb_rf_din(	wb_rf_din	),
 		.wb_rf_adr(	wb_rf_adr	),
 		.wb_rf_we(	wb_rf_we	),
@@ -879,7 +879,7 @@ wb_dma_ch_rf #(5, ch5_conf[0], ch5_conf[1], ch5_conf[2], ch5_conf[3]) u5(
 		.sw_pointer(	sw_pointer5	),
 		.ch_stop(	ch_stop[5]	),
 		.ch_dis(	ch_dis[5]	),
-		.int(		ch_int[5]	),
+		.irq(		ch_irq[5]	),
 		.wb_rf_din(	wb_rf_din	),
 		.wb_rf_adr(	wb_rf_adr	),
 		.wb_rf_we(	wb_rf_we	),
@@ -917,7 +917,7 @@ wb_dma_ch_rf #(6, ch6_conf[0], ch6_conf[1], ch6_conf[2], ch6_conf[3]) u6(
 		.sw_pointer(	sw_pointer6	),
 		.ch_stop(	ch_stop[6]	),
 		.ch_dis(	ch_dis[6]	),
-		.int(		ch_int[6]	),
+		.irq(		ch_irq[6]	),
 		.wb_rf_din(	wb_rf_din	),
 		.wb_rf_adr(	wb_rf_adr	),
 		.wb_rf_we(	wb_rf_we	),
@@ -955,7 +955,7 @@ wb_dma_ch_rf #(7, ch7_conf[0], ch7_conf[1], ch7_conf[2], ch7_conf[3]) u7(
 		.sw_pointer(	sw_pointer7	),
 		.ch_stop(	ch_stop[7]	),
 		.ch_dis(	ch_dis[7]	),
-		.int(		ch_int[7]	),
+		.irq(		ch_irq[7]	),
 		.wb_rf_din(	wb_rf_din	),
 		.wb_rf_adr(	wb_rf_adr	),
 		.wb_rf_we(	wb_rf_we	),
@@ -993,7 +993,7 @@ wb_dma_ch_rf #(8, ch8_conf[0], ch8_conf[1], ch8_conf[2], ch8_conf[3]) u8(
 		.sw_pointer(	sw_pointer8	),
 		.ch_stop(	ch_stop[8]	),
 		.ch_dis(	ch_dis[8]	),
-		.int(		ch_int[8]	),
+		.irq(		ch_irq[8]	),
 		.wb_rf_din(	wb_rf_din	),
 		.wb_rf_adr(	wb_rf_adr	),
 		.wb_rf_we(	wb_rf_we	),
@@ -1031,7 +1031,7 @@ wb_dma_ch_rf #(9, ch9_conf[0], ch9_conf[1], ch9_conf[2], ch9_conf[3]) u9(
 		.sw_pointer(	sw_pointer9	),
 		.ch_stop(	ch_stop[9]	),
 		.ch_dis(	ch_dis[9]	),
-		.int(		ch_int[9]	),
+		.irq(		ch_irq[9]	),
 		.wb_rf_din(	wb_rf_din	),
 		.wb_rf_adr(	wb_rf_adr	),
 		.wb_rf_we(	wb_rf_we	),
@@ -1069,7 +1069,7 @@ wb_dma_ch_rf #(10, ch10_conf[0], ch10_conf[1], ch10_conf[2], ch10_conf[3]) u10(
 		.sw_pointer(	sw_pointer10	),
 		.ch_stop(	ch_stop[10]	),
 		.ch_dis(	ch_dis[10]	),
-		.int(		ch_int[10]	),
+		.irq(		ch_irq[10]	),
 		.wb_rf_din(	wb_rf_din	),
 		.wb_rf_adr(	wb_rf_adr	),
 		.wb_rf_we(	wb_rf_we	),
@@ -1107,7 +1107,7 @@ wb_dma_ch_rf #(11, ch11_conf[0], ch11_conf[1], ch11_conf[2], ch11_conf[3]) u11(
 		.sw_pointer(	sw_pointer11	),
 		.ch_stop(	ch_stop[11]	),
 		.ch_dis(	ch_dis[11]	),
-		.int(		ch_int[11]	),
+		.irq(		ch_irq[11]	),
 		.wb_rf_din(	wb_rf_din	),
 		.wb_rf_adr(	wb_rf_adr	),
 		.wb_rf_we(	wb_rf_we	),
@@ -1145,7 +1145,7 @@ wb_dma_ch_rf #(12, ch12_conf[0], ch12_conf[1], ch12_conf[2], ch12_conf[3]) u12(
 		.sw_pointer(	sw_pointer12	),
 		.ch_stop(	ch_stop[12]	),
 		.ch_dis(	ch_dis[12]	),
-		.int(		ch_int[12]	),
+		.irq(		ch_irq[12]	),
 		.wb_rf_din(	wb_rf_din	),
 		.wb_rf_adr(	wb_rf_adr	),
 		.wb_rf_we(	wb_rf_we	),
@@ -1183,7 +1183,7 @@ wb_dma_ch_rf #(13, ch13_conf[0], ch13_conf[1], ch13_conf[2], ch13_conf[3]) u13(
 		.sw_pointer(	sw_pointer13	),
 		.ch_stop(	ch_stop[13]	),
 		.ch_dis(	ch_dis[13]	),
-		.int(		ch_int[13]	),
+		.irq(		ch_irq[13]	),
 		.wb_rf_din(	wb_rf_din	),
 		.wb_rf_adr(	wb_rf_adr	),
 		.wb_rf_we(	wb_rf_we	),
@@ -1221,7 +1221,7 @@ wb_dma_ch_rf #(14, ch14_conf[0], ch14_conf[1], ch14_conf[2], ch14_conf[3]) u14(
 		.sw_pointer(	sw_pointer14	),
 		.ch_stop(	ch_stop[14]	),
 		.ch_dis(	ch_dis[14]	),
-		.int(		ch_int[14]	),
+		.irq(		ch_irq[14]	),
 		.wb_rf_din(	wb_rf_din	),
 		.wb_rf_adr(	wb_rf_adr	),
 		.wb_rf_we(	wb_rf_we	),
@@ -1259,7 +1259,7 @@ wb_dma_ch_rf #(15, ch15_conf[0], ch15_conf[1], ch15_conf[2], ch15_conf[3]) u15(
 		.sw_pointer(	sw_pointer15	),
 		.ch_stop(	ch_stop[15]	),
 		.ch_dis(	ch_dis[15]	),
-		.int(		ch_int[15]	),
+		.irq(		ch_irq[15]	),
 		.wb_rf_din(	wb_rf_din	),
 		.wb_rf_adr(	wb_rf_adr	),
 		.wb_rf_we(	wb_rf_we	),
@@ -1297,7 +1297,7 @@ wb_dma_ch_rf #(16, ch16_conf[0], ch16_conf[1], ch16_conf[2], ch16_conf[3]) u16(
 		.sw_pointer(	sw_pointer16	),
 		.ch_stop(	ch_stop[16]	),
 		.ch_dis(	ch_dis[16]	),
-		.int(		ch_int[16]	),
+		.irq(		ch_irq[16]	),
 		.wb_rf_din(	wb_rf_din	),
 		.wb_rf_adr(	wb_rf_adr	),
 		.wb_rf_we(	wb_rf_we	),
@@ -1335,7 +1335,7 @@ wb_dma_ch_rf #(17, ch17_conf[0], ch17_conf[1], ch17_conf[2], ch17_conf[3]) u17(
 		.sw_pointer(	sw_pointer17	),
 		.ch_stop(	ch_stop[17]	),
 		.ch_dis(	ch_dis[17]	),
-		.int(		ch_int[17]	),
+		.irq(		ch_irq[17]	),
 		.wb_rf_din(	wb_rf_din	),
 		.wb_rf_adr(	wb_rf_adr	),
 		.wb_rf_we(	wb_rf_we	),
@@ -1373,7 +1373,7 @@ wb_dma_ch_rf #(18, ch18_conf[0], ch18_conf[1], ch18_conf[2], ch18_conf[3]) u18(
 		.sw_pointer(	sw_pointer18	),
 		.ch_stop(	ch_stop[18]	),
 		.ch_dis(	ch_dis[18]	),
-		.int(		ch_int[18]	),
+		.irq(		ch_irq[18]	),
 		.wb_rf_din(	wb_rf_din	),
 		.wb_rf_adr(	wb_rf_adr	),
 		.wb_rf_we(	wb_rf_we	),
@@ -1411,7 +1411,7 @@ wb_dma_ch_rf #(19, ch19_conf[0], ch19_conf[1], ch19_conf[2], ch19_conf[3]) u19(
 		.sw_pointer(	sw_pointer19	),
 		.ch_stop(	ch_stop[19]	),
 		.ch_dis(	ch_dis[19]	),
-		.int(		ch_int[19]	),
+		.irq(		ch_irq[19]	),
 		.wb_rf_din(	wb_rf_din	),
 		.wb_rf_adr(	wb_rf_adr	),
 		.wb_rf_we(	wb_rf_we	),
@@ -1449,7 +1449,7 @@ wb_dma_ch_rf #(20, ch20_conf[0], ch20_conf[1], ch20_conf[2], ch20_conf[3]) u20(
 		.sw_pointer(	sw_pointer20	),
 		.ch_stop(	ch_stop[20]	),
 		.ch_dis(	ch_dis[20]	),
-		.int(		ch_int[20]	),
+		.irq(		ch_irq[20]	),
 		.wb_rf_din(	wb_rf_din	),
 		.wb_rf_adr(	wb_rf_adr	),
 		.wb_rf_we(	wb_rf_we	),
@@ -1487,7 +1487,7 @@ wb_dma_ch_rf #(21, ch21_conf[0], ch21_conf[1], ch21_conf[2], ch21_conf[3]) u21(
 		.sw_pointer(	sw_pointer21	),
 		.ch_stop(	ch_stop[21]	),
 		.ch_dis(	ch_dis[21]	),
-		.int(		ch_int[21]	),
+		.irq(		ch_irq[21]	),
 		.wb_rf_din(	wb_rf_din	),
 		.wb_rf_adr(	wb_rf_adr	),
 		.wb_rf_we(	wb_rf_we	),
@@ -1525,7 +1525,7 @@ wb_dma_ch_rf #(22, ch22_conf[0], ch22_conf[1], ch22_conf[2], ch22_conf[3]) u22(
 		.sw_pointer(	sw_pointer22	),
 		.ch_stop(	ch_stop[22]	),
 		.ch_dis(	ch_dis[22]	),
-		.int(		ch_int[22]	),
+		.irq(		ch_irq[22]	),
 		.wb_rf_din(	wb_rf_din	),
 		.wb_rf_adr(	wb_rf_adr	),
 		.wb_rf_we(	wb_rf_we	),
@@ -1563,7 +1563,7 @@ wb_dma_ch_rf #(23, ch23_conf[0], ch23_conf[1], ch23_conf[2], ch23_conf[3]) u23(
 		.sw_pointer(	sw_pointer23	),
 		.ch_stop(	ch_stop[23]	),
 		.ch_dis(	ch_dis[23]	),
-		.int(		ch_int[23]	),
+		.irq(		ch_irq[23]	),
 		.wb_rf_din(	wb_rf_din	),
 		.wb_rf_adr(	wb_rf_adr	),
 		.wb_rf_we(	wb_rf_we	),
@@ -1601,7 +1601,7 @@ wb_dma_ch_rf #(24, ch24_conf[0], ch24_conf[1], ch24_conf[2], ch24_conf[3]) u24(
 		.sw_pointer(	sw_pointer24	),
 		.ch_stop(	ch_stop[24]	),
 		.ch_dis(	ch_dis[24]	),
-		.int(		ch_int[24]	),
+		.irq(		ch_irq[24]	),
 		.wb_rf_din(	wb_rf_din	),
 		.wb_rf_adr(	wb_rf_adr	),
 		.wb_rf_we(	wb_rf_we	),
@@ -1639,7 +1639,7 @@ wb_dma_ch_rf #(25, ch25_conf[0], ch25_conf[1], ch25_conf[2], ch25_conf[3]) u25(
 		.sw_pointer(	sw_pointer25	),
 		.ch_stop(	ch_stop[25]	),
 		.ch_dis(	ch_dis[25]	),
-		.int(		ch_int[25]	),
+		.irq(		ch_irq[25]	),
 		.wb_rf_din(	wb_rf_din	),
 		.wb_rf_adr(	wb_rf_adr	),
 		.wb_rf_we(	wb_rf_we	),
@@ -1677,7 +1677,7 @@ wb_dma_ch_rf #(26, ch26_conf[0], ch26_conf[1], ch26_conf[2], ch26_conf[3]) u26(
 		.sw_pointer(	sw_pointer26	),
 		.ch_stop(	ch_stop[26]	),
 		.ch_dis(	ch_dis[26]	),
-		.int(		ch_int[26]	),
+		.irq(		ch_irq[26]	),
 		.wb_rf_din(	wb_rf_din	),
 		.wb_rf_adr(	wb_rf_adr	),
 		.wb_rf_we(	wb_rf_we	),
@@ -1715,7 +1715,7 @@ wb_dma_ch_rf #(27, ch27_conf[0], ch27_conf[1], ch27_conf[2], ch27_conf[3]) u27(
 		.sw_pointer(	sw_pointer27	),
 		.ch_stop(	ch_stop[27]	),
 		.ch_dis(	ch_dis[27]	),
-		.int(		ch_int[27]	),
+		.irq(		ch_irq[27]	),
 		.wb_rf_din(	wb_rf_din	),
 		.wb_rf_adr(	wb_rf_adr	),
 		.wb_rf_we(	wb_rf_we	),
@@ -1753,7 +1753,7 @@ wb_dma_ch_rf #(28, ch28_conf[0], ch28_conf[1], ch28_conf[2], ch28_conf[3]) u28(
 		.sw_pointer(	sw_pointer28	),
 		.ch_stop(	ch_stop[28]	),
 		.ch_dis(	ch_dis[28]	),
-		.int(		ch_int[28]	),
+		.irq(		ch_irq[28]	),
 		.wb_rf_din(	wb_rf_din	),
 		.wb_rf_adr(	wb_rf_adr	),
 		.wb_rf_we(	wb_rf_we	),
@@ -1791,7 +1791,7 @@ wb_dma_ch_rf #(29, ch29_conf[0], ch29_conf[1], ch29_conf[2], ch29_conf[3]) u29(
 		.sw_pointer(	sw_pointer29	),
 		.ch_stop(	ch_stop[29]	),
 		.ch_dis(	ch_dis[29]	),
-		.int(		ch_int[29]	),
+		.irq(		ch_irq[29]	),
 		.wb_rf_din(	wb_rf_din	),
 		.wb_rf_adr(	wb_rf_adr	),
 		.wb_rf_we(	wb_rf_we	),
@@ -1829,7 +1829,7 @@ wb_dma_ch_rf #(30, ch30_conf[0], ch30_conf[1], ch30_conf[2], ch30_conf[3]) u30(
 		.sw_pointer(	sw_pointer30	),
 		.ch_stop(	ch_stop[30]	),
 		.ch_dis(	ch_dis[30]	),
-		.int(		ch_int[30]	),
+		.irq(		ch_irq[30]	),
 		.wb_rf_din(	wb_rf_din	),
 		.wb_rf_adr(	wb_rf_adr	),
 		.wb_rf_we(	wb_rf_we	),

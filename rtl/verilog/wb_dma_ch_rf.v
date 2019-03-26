@@ -90,7 +90,7 @@
 
 module wb_dma_ch_rf(	clk, rst,
 			pointer, pointer_s, ch_csr, ch_txsz, ch_adr0, ch_adr1,
-			ch_am0, ch_am1, sw_pointer, ch_stop, ch_dis, int,
+			ch_am0, ch_am1, sw_pointer, ch_stop, ch_dis, irq,
 
 			wb_rf_din, wb_rf_adr, wb_rf_we, wb_rf_re,
 
@@ -127,7 +127,7 @@ output	[31:0]	ch_am1;
 output	[31:0]	sw_pointer;
 output		ch_stop;
 output		ch_dis;
-output		int;
+output		irq;
 
 input	[31:0]	wb_rf_din;
 input	[7:0]	wb_rf_adr;
@@ -165,7 +165,7 @@ wire	[31:0]	ch_csr, ch_txsz;
 reg	[8:0]	ch_csr_r;
 reg	[2:0]	ch_csr_r2;
 reg	[2:0]	ch_csr_r3;
-reg	[2:0]	int_src_r;
+reg	[2:0]	irq_src_r;
 reg		ch_err_r;
 reg		ch_stop;
 reg		ch_busy;
@@ -217,7 +217,7 @@ assign sw_pointer	= (CH_EN & HAVE_CBUF) ? {sw_pointer_r,2'h0} : 32'h0;
 
 assign pointer		= CH_EN ? {pointer_r, 3'h0, ptr_valid} : 32'h0;
 assign pointer_s	= CH_EN ? {pointer_sr, 4'h0}  : 32'h0;
-assign ch_csr		= CH_EN ? {9'h0, int_src_r, ch_csr_r3, rest_en, ch_csr_r2,
+assign ch_csr		= CH_EN ? {9'h0, irq_src_r, ch_csr_r3, rest_en, ch_csr_r2,
 					ch_err, ch_done, ch_busy, 1'b0, ch_csr_r[8:1], ch_enable} : 32'h0;
 assign ch_txsz		= CH_EN ? {5'h0, ch_chk_sz_r, ch_sz_inf, 3'h0, ch_tot_sz_r} : 32'h0;
 
@@ -358,45 +358,45 @@ always @(posedge clk or negedge rst)
 	else
 	if(CH_EN & ch_csr_we)		rest_en <= #1 wb_rf_din[16];
 
-// INT Mask
+// IRQ Mask
 always @(posedge clk or negedge rst)
 	if(!rst)			ch_csr_r3 <= #1 3'h0;
 	else
 	if(CH_EN & ch_csr_we)		ch_csr_r3 <= #1 wb_rf_din[19:17];
 
-// INT Source
+// IRQ Source
 always @(posedge clk or negedge rst)
-	if(!rst)			int_src_r[2] <= #1 1'b0;
+	if(!rst)			irq_src_r[2] <= #1 1'b0;
 	else
 	if(CH_EN)
 	   begin
-		if(chunk_done_we)	int_src_r[2] <= #1 1'b1;
+		if(chunk_done_we)	irq_src_r[2] <= #1 1'b1;
 		else
-		if(ch_csr_re)		int_src_r[2] <= #1 1'b0;
+		if(ch_csr_re)		irq_src_r[2] <= #1 1'b0;
 	   end
 
 always @(posedge clk or negedge rst)
-	if(!rst)			int_src_r[1] <= #1 1'b0;
+	if(!rst)			irq_src_r[1] <= #1 1'b0;
 	else
 	if(CH_EN)
 	   begin
-		if(ch_done_we)		int_src_r[1] <= #1 1'b1;
+		if(ch_done_we)		irq_src_r[1] <= #1 1'b1;
 		else
-		if(ch_csr_re)		int_src_r[1] <= #1 1'b0;
+		if(ch_csr_re)		irq_src_r[1] <= #1 1'b0;
 	   end
 
 always @(posedge clk or negedge rst)
-	if(!rst)			int_src_r[0] <= #1 1'b0;
+	if(!rst)			irq_src_r[0] <= #1 1'b0;
 	else
 	if(CH_EN)
 	   begin
-		if(ch_err_we)		int_src_r[0] <= #1 1'b1;
+		if(ch_err_we)		irq_src_r[0] <= #1 1'b1;
 		else
-		if(ch_csr_re)		int_src_r[0] <= #1 1'b0;
+		if(ch_csr_re)		irq_src_r[0] <= #1 1'b0;
 	   end
 
 // Interrupt Output
-assign int = |(int_src_r & ch_csr_r3) & CH_EN;
+assign irq = |(irq_src_r & ch_csr_r3) & CH_EN;
 
 // ---------------------------------------------------
 // TXZS
@@ -509,7 +509,7 @@ endmodule
 
 module wb_dma_ch_rf_dummy(clk, rst,
 			pointer, pointer_s, ch_csr, ch_txsz, ch_adr0, ch_adr1,
-			ch_am0, ch_am1, sw_pointer, ch_stop, ch_dis, int,
+			ch_am0, ch_am1, sw_pointer, ch_stop, ch_dis, irq,
 
 			wb_rf_din, wb_rf_adr, wb_rf_we, wb_rf_re,
 
@@ -545,7 +545,7 @@ output	[31:0]	ch_am1;
 output	[31:0]	sw_pointer;
 output		ch_stop;
 output		ch_dis;
-output		int;
+output		irq;
 
 input	[31:0]	wb_rf_din;
 input	[7:0]	wb_rf_adr;
@@ -578,6 +578,6 @@ assign		ch_am1 = 32'h0;
 assign		sw_pointer = 32'h0;
 assign		ch_stop = 1'b0;
 assign		ch_dis = 1'b0;
-assign		int = 1'b0;
+assign		irq = 1'b0;
 
 endmodule

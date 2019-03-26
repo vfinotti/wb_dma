@@ -104,7 +104,7 @@ module wb_dma_top(clk_i, rst_i,
 
 	dma_req_i, dma_ack_o, dma_nd_i, dma_rest_i,
 
-	inta_o, intb_o
+	irqa_o, irqb_o
 	);
 
 ////////////////////////////////////////////////////////////////////
@@ -215,8 +215,8 @@ input	[ch_count-1:0]	dma_req_i;
 input	[ch_count-1:0]	dma_nd_i;
 output	[ch_count-1:0]	dma_ack_o;
 input	[ch_count-1:0]	dma_rest_i;
-output			inta_o;
-output			intb_o;
+output			irqa_o;
+output			irqb_o;
 
 ////////////////////////////////////////////////////////////////////
 //
@@ -267,7 +267,7 @@ wire	[31:0]	adr0, adr1;	// Selected Channel Addresses
 wire	[31:0]	am0, am1;	// Selected Channel Address Masks
 wire		next_ch;	// Indicates the DMA Engine is done
 
-wire		inta_o, intb_o;
+wire		irqa_o, irqb_o;
 wire		dma_abort;
 wire		dma_busy, dma_err, dma_done, dma_done_all;
 wire	[31:0]	de_csr;
@@ -398,8 +398,8 @@ wb_dma_rf   #(	ch0_conf,
 		.wb_rf_dout(	slv0_din	),
 		.wb_rf_re(	slv0_re		),
 		.wb_rf_we(	slv0_we		),
-		.inta_o(	inta_o		),
-		.intb_o(	intb_o		),
+		.irqa_o(	irqa_o		),
+		.irqb_o(	irqb_o		),
 		.pointer0(	pointer0	),
 		.pointer0_s(	pointer0_s	),
 		.ch0_csr(	ch0_csr		),
